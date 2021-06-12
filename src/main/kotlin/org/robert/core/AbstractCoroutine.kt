@@ -3,7 +3,9 @@ package org.robert.core
 import org.robert.Job
 import org.robert.OnCancel
 import org.robert.OnComplete
+import org.robert.context.CoroutineName
 import java.lang.IllegalStateException
+import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.CoroutineContext
@@ -37,9 +39,22 @@ abstract class AbstractCoroutine<T>(context: CoroutineContext) : Job, Continuati
                 }
             }
         }
-        //todo 处理异常
+        (newState as CoroutineState.Complete<T>).throwable?.let(::tryHandleException)
         newState.notifyCompletion(result)
         newState.clear()
+    }
+
+    private fun tryHandleException(throwable: Throwable): Boolean {
+        return when (throwable) {
+            is CancellationException -> false
+            else -> {
+                handleJobException(throwable)
+            }
+        }
+    }
+
+    protected open fun handleJobException(throwable: Throwable): Boolean {
+        return false
     }
 
     override val isActive: Boolean
@@ -104,7 +119,7 @@ abstract class AbstractCoroutine<T>(context: CoroutineContext) : Job, Continuati
             block(
                 when {
                     it.value != null -> Result.success(it.value)
-                    it.t != null -> Result.failure(it.t)
+                    it.throwable != null -> Result.failure(it.throwable)
                     else -> throw IllegalStateException("Won't happen")
                 }
             )
@@ -143,5 +158,9 @@ abstract class AbstractCoroutine<T>(context: CoroutineContext) : Job, Continuati
             onCancel()
         }
         return disposable
+    }
+
+    override fun toString(): String {
+        return "${context[CoroutineName]?.name}"
     }
 }

@@ -45,7 +45,10 @@ sealed class CoroutineState {
     class InComplete : CoroutineState()
 
     //完成
-    class Complete<T>(val value: T? = null, val t: Throwable? = null) : CoroutineState()
+    class Complete<T>(
+        val value: T? = null,
+        val throwable: Throwable? = null
+    ) : CoroutineState()
 
     //取消中
     class Canceling() : CoroutineState()

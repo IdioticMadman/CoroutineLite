@@ -24,7 +24,7 @@ class BlockCoroutine<T>(
             eventQueue.take().invoke()
         }
         return (state.get() as CoroutineState.Complete<T>)?.let {
-            it.value ?: throw it.t!!
+            it.value ?: throw it.throwable!!
         }
     }
 }

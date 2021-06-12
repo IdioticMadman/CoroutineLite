@@ -2,7 +2,6 @@ package org.robert.core
 
 import org.robert.Deferred
 import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 @Suppress("UNCHECKED_CAST")
@@ -10,7 +9,7 @@ class DeferredCoroutine<T>(context: CoroutineContext) : AbstractCoroutine<T>(con
 
     override suspend fun await(): T {
         return when (val coroutineState = state.get()) {
-            is CoroutineState.Complete<*> -> (coroutineState.value as T?) ?: throw coroutineState.t!!
+            is CoroutineState.Complete<*> -> (coroutineState.value as T?) ?: throw coroutineState.throwable!!
             is CoroutineState.Canceling,
             is CoroutineState.InComplete -> awaitSuspend()
         }
