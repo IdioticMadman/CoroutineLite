@@ -1,0 +1,28 @@
+plugins {
+    id 'java'
+    id 'org.jetbrains.kotlin.jvm' version '1.5.0'
+}
+
+group 'org.robert'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    implementation 'com.squareup.retrofit2:retrofit:2.6.2'
+    implementation 'com.squareup.retrofit2:converter-gson:2.6.2'
+    implementation 'com.bennyhuo.java:portable-android-handler:0.2'
+    compileOnly 'com.google.android:android:4.1.1.4'
+}
+
+compileKotlin {
+    kotlinOptions{
+        jvmTarget = "1.8"
+        freeCompilerArgs = ["-Xallow-result-return-type"]
+    }
+}
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
