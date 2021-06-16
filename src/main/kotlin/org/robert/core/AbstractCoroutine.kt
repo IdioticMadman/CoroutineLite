@@ -3,25 +3,27 @@ package org.robert.core
 import org.robert.Job
 import org.robert.OnCancel
 import org.robert.OnComplete
+import org.robert.cancel.suspendCancellableCoroutine
 import org.robert.context.CoroutineName
+import org.robert.scope.CoroutineScope
 import java.lang.IllegalStateException
 import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.coroutines.Continuation
-import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
+import kotlin.coroutines.*
 
-abstract class AbstractCoroutine<T>(context: CoroutineContext) : Job, Continuation<T> {
+abstract class AbstractCoroutine<T>(context: CoroutineContext) : Job, Continuation<T>, CoroutineScope {
 
     protected val state = AtomicReference<CoroutineState>()
     override val context = context + this
+    override val scopeContext: CoroutineContext
+        get() = context
 
     protected val parentJob = context[Job]
     private var parentCancelDisposable: Disposable? = null
 
     init {
         state.set(CoroutineState.InComplete())
+        //父协程取消时，子协程也取消
         parentCancelDisposable = parentJob?.invokeOnCancel {
             cancel()
         }
@@ -42,19 +44,30 @@ abstract class AbstractCoroutine<T>(context: CoroutineContext) : Job, Continuati
         (newState as CoroutineState.Complete<T>).throwable?.let(::tryHandleException)
         newState.notifyCompletion(result)
         newState.clear()
+        //子协程完成，取消在父协程注册的监听
+        parentCancelDisposable?.dispose()
     }
 
     private fun tryHandleException(throwable: Throwable): Boolean {
         return when (throwable) {
             is CancellationException -> false
             else -> {
-                handleJobException(throwable)
+                //判断父协程是否需要处理异常
+                (parentJob as? AbstractCoroutine<*>)?.handleChildException(throwable)?.takeIf { it }
+                    ?: handleJobException(throwable)
             }
         }
     }
 
     protected open fun handleJobException(throwable: Throwable): Boolean {
         return false
+    }
+
+    protected open fun handleChildException(throwable: Throwable): Boolean {
+        //子协程发生异常，需要取消子协程的父协程
+        cancel()
+        //然后继续往上抛
+        return tryHandleException(throwable)
     }
 
     override val isActive: Boolean
@@ -90,13 +103,24 @@ abstract class AbstractCoroutine<T>(context: CoroutineContext) : Job, Continuati
         when (state.get()) {
             is CoroutineState.Canceling,
             is CoroutineState.InComplete -> return joinSuspend()
-            is CoroutineState.Complete<*> -> return
+            is CoroutineState.Complete<*> -> {
+                //父协程不是active状态，子协程抛
+                val currentCallingJobState = coroutineContext[Job]?.isActive ?: return
+                if (!currentCallingJobState) {
+                    throw CancellationException("Coroutine is canceled")
+                }
+                return
+            }
         }
     }
 
-    private suspend fun joinSuspend() = suspendCoroutine<Unit> { continuation ->
-        doOnCompleted {
+    private suspend fun joinSuspend() = suspendCancellableCoroutine<Unit> { continuation ->
+        val disposable = doOnCompleted {
             continuation.resume(Unit)
+        }
+        //join方法支持取消
+        continuation.invokeOnCancel {
+            disposable.dispose()
         }
     }
 
@@ -140,6 +164,7 @@ abstract class AbstractCoroutine<T>(context: CoroutineContext) : Job, Continuati
         if (newState is CoroutineState.Canceling) {
             newState.notifyCancellation()
         }
+        // 当前协程被取消，取消父协程取消的监听
         parentCancelDisposable?.dispose()
     }
 

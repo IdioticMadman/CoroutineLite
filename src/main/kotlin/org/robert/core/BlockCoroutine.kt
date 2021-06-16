@@ -8,7 +8,7 @@ typealias EventTask = () -> Unit
 
 class BlockingQueueDispatcher : LinkedBlockingDeque<EventTask>(), Dispatcher {
     override fun dispatch(block: () -> Unit) {
-        //恢复时，添加到阻塞队列
+        //协程恢复时，添加到阻塞队列
         offer(block)
     }
 }
