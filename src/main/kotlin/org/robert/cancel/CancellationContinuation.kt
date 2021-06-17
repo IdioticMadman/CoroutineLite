@@ -54,6 +54,7 @@ class CancellationContinuation<T>(private val continuation: Continuation<T>) :
     }
 
     fun getResult(): Any? {
+        //注册监听
         installCancelHandler()
         return when (val currentState = state.get()) {
             CancelState.Cancelled -> throw CancellationException("Continuation is canceled")
@@ -68,7 +69,9 @@ class CancellationContinuation<T>(private val continuation: Continuation<T>) :
 
     private fun installCancelHandler() {
         if (!isActive) return
+        //获取当前context中的job
         val parent = continuation.context[Job] ?: return
+        //给当前job添加取消监听，当job调用cancel后，也取消当前Continuation
         parent.invokeOnCancel {
             doCancel()
         }
@@ -91,6 +94,8 @@ suspend inline fun <T> suspendCancellableCoroutine(
     crossinline block: (CancellationContinuation<T>) -> Unit
 ): T = suspendCoroutineUninterceptedOrReturn { c: Continuation<T> ->
     val cancellationContinuation = CancellationContinuation(c.intercepted())
+    //执行协程体体
     block(cancellationContinuation)
+    //获取当前协程执行结果，并监听调用这个挂起的Job是否取消
     cancellationContinuation.getResult()
 }

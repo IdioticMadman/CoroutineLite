@@ -2,6 +2,7 @@ package org.robert.core
 
 import org.robert.Deferred
 import org.robert.Job
+import org.robert.cancel.suspendCancellableCoroutine
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.coroutineContext
@@ -23,9 +24,12 @@ class DeferredCoroutine<T>(context: CoroutineContext) : AbstractCoroutine<T>(con
         }
     }
 
-    private suspend fun awaitSuspend(): T = suspendCoroutine { continuation ->
-        doOnCompleted { result ->
+    private suspend fun awaitSuspend(): T = suspendCancellableCoroutine { continuation ->
+        val disposable = doOnCompleted { result ->
             continuation.resumeWith(result)
+        }
+        continuation.invokeOnCancel {
+            disposable.dispose()
         }
     }
 }

@@ -21,16 +21,15 @@ suspend fun main() {
     val job = GlobalScope.launch(handler) {
         log(1)
         delay(200)
-        supervisorScope {
-            log(2)
-            val job1 = launch(handler) {
-                throw ArithmeticException("div 0")
-            }
-            log(3)
-            job1.join()
+        log(2)
+        val job1 = launch(handler) {
+            throw ArithmeticException("div 0")
         }
+        log(3)
+        job1.join()
         log(4)
     }
+    job.cancel()
     log(job.isActive)
     job.join()
 }
